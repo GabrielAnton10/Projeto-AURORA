@@ -1,7 +1,7 @@
 # Projeto-AURORA
 <p align="center">
-<img width="480" height=480" alt="logo unica" src="https://github.com/user-attachments/assets/3689e065-126a-450a-8420-408393ef47d3" />
-
+<img width="1000" height=500" alt="logo unica" src="https://github.com/GabrielAnton10/Projeto-AURORA/blob/main/Imagens/logo%20do%20Aurora.jpeg" />
+  
 </p>
 
 ## Introdução
