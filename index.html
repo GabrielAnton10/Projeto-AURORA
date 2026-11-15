@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="img/simbolo.png">
+<title>AURORA – Monitoramento Inteligente de Barreiras</title>
+<!-- leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>window.L||document.write('<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"><\/script>')</script>
+<!-- /leaflet -->
+<link rel="stylesheet" href="css/style.css"></head><body>
+
+<section id="login">
+<form class="lbox" onsubmit="return enter_(event)">
+<img class="big" alt="AURORA – Monitoramento inteligente de barreiras" src="img/logo.png"><h1>AURORA</h1><p style="text-align:center">Central de controle · acesso restrito a administradores</p>
+<input id="u" placeholder="Usuário ou e-mail" autocomplete="username">
+<input id="p" type="password" placeholder="Senha" autocomplete="current-password">
+<button class="btn">Entrar</button>
+<a onclick="alert('Recuperação de senha será feita pelo backend (e-mail com link temporário).')">Esqueci minha senha</a>
+<p style="margin-top:14px;font-size:11px;text-align:center">Protótipo: o login ainda não valida credenciais. A autenticação real será feita no backend.</p>
+</form></section>
+
+<div id="app" class="hide">
+<aside id="sb"><div class="logo"><img alt="" src="img/simbolo.png">AURORA</div><div id="nav"></div><div class="sp"></div>
+<a onclick="logout()">⎋ Sair</a></aside>
+<main><div class="top"><div><button id="mb" class="btn s" onclick="sb.classList.toggle('open')">☰</button> <h2 id="ttl" style="display:inline"></h2></div>
+<span style="color:var(--mut);font-size:12px" id="clk"></span></div>
+<div class="demo">⚠️ <b>DADOS FICTÍCIOS</b> – demonstração visual. Nenhum equipamento ou sensor real está conectado a esta plataforma.</div>
+<div id="v"></div></main></div>
+
+<script src="js/dados.js"></script>
+<script src="js/app.js"></script></body></html>
