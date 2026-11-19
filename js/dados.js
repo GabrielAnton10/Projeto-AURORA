@@ -1,54 +1,87 @@
 // ============================================================
 // AURORA – dados.js
-// Camada de dados. Hoje: dados FICTÍCIOS (CONFIG.source = "demo").
-// Futuramente: trocar por chamadas ao backend (fetch em CONFIG.apiBase).
-// Contrato previsto:
-//   GET  /api/devices
-//   GET  /api/readings?deviceId&from&to
-//   GET  /api/alerts
-//   POST /api/readings   (ESP32 -> backend)
+// Camada de dados do site, ligada à API FastAPI do projeto.
+//   GET /api/v1/status     -> estado da API e da IA
+//   GET /api/v1/historico  -> últimos 20 envios do ESP32 (com a análise da IA)
+// O ESP32 envia para POST /api/v1/dados (isso é feito pelo ESP32, não pelo site).
+// Tudo que o site mostra é montado aqui a partir desses envios.
 // ============================================================
-const CONFIG={source:'demo',apiBase:'/api'};
-function rng(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-const R=rng(42),N=48,now=Date.now();
-// Áreas reais de risco do Recife (citadas pela Defesa Civil do Recife). Posições APROXIMADAS (centro do bairro).
-// Os equipamentos instalados nelas são FICTÍCIOS.
-const AREAS=[
- {nome:'Nova Descoberta',det:'Córrego do Beijú / Alto do Cruzeiro',lat:-8.0005,lng:-34.9210},
- {nome:'Alto José Bonifácio',det:'Alto do Brasil',lat:-8.0050,lng:-34.9330},
- {nome:'Ibura',det:'Vila do Sesi / Alto da Bela Vista',lat:-8.1180,lng:-34.9420},
- {nome:'Jordão',det:'Alto da Jaqueira',lat:-8.1350,lng:-34.9500}];
-const AREA_DE=[0,0,1,1,2,2,3,3];
-// SPEC: [umidade base %, inclinação base °, variação °, bateria %, online]
-const SPEC=[[45,3,.6,78,1],[58,4,.8,62,1],[88,9,1,40,1],[74,6,.8,22,1],[40,2.5,.5,90,1],[0,0,0,0,0],[66,5,.8,55,1],[52,3,.6,18,1]];
-const DEV=SPEC.map(([b,m,v,bat,on],i)=>{const area=AREAS[AREA_DE[i]];
- const hum=[...Array(N)].map((_,k)=>Math.max(5,Math.min(99,b+(i==2?k*.5:i==3?k*.1:0)-(i==2?10:0)+Math.sin(k/5+i)*6+(R()-.5)*5)));
- const inc=[...Array(N)].map((_,k)=>Math.max(0,m+(i==2&&k>38?4:0)+R()*v*2));
- const tmp=[...Array(N)].map((_,k)=>27+Math.sin((k-8)/7.5)*4+(R()-.5)*1.5);
- const d={id:'EQ-'+String(i+1).padStart(3,'0'),area,loc:area.nome+' – '+area.det,hum,inc,tmp,bat,on,solar:on?(bat>30?'Carregando':'Baixa geração'):'—',last:now-(on?(i*37%9+1)*60000:5*3600000)};
- d.h=on?hum[N-1]:null;d.i=on?inc[N-1]:null;d.t=on?tmp[N-1]:null;
- d.s=on?(d.h>85||d.i>12?'crit':d.h>70||d.i>8||bat<25?'warn':'ok'):'off';return d});
-const ALERTS=[
- [2,'Estado crítico','Inclinação elevada','Inclinação de 14,2° com solo saturado.',3,1],
- [2,'Risco moderado','Umidade elevada','Umidade acima de 85% por mais de 4 h.',8,1],
- [3,'Atenção','Umidade em alta','Tendência de crescimento de umidade nas últimas 12 h.',5,1],
- [3,'Atenção','Bateria baixa','Bateria abaixo de 25% com geração solar reduzida.',9,1],
- [7,'Atenção','Bateria baixa','Bateria em 18%.',20,1],
- [5,'Risco moderado','Sem comunicação','Equipamento sem enviar dados há mais de 5 h.',5,1],
- [1,'Normal','Retomada de comunicação','Equipamento voltou a comunicar após queda de sinal.',70,0],
- [6,'Atenção','Variação de umidade','Variação de 18% em 2 h.',96,0],
- [0,'Risco moderado','Variação de inclinação','Variação de 2,6° registrada.',150,0],
- [2,'Estado crítico','Inclinação elevada','Pico de inclinação (13,1°).',220,0]
-].map((a,i)=>({n:i+1,dev:DEV[a[0]],sev:a[1],tipo:a[2],desc:a[3],ts:now-a[4]*3600000,ativo:a[5]}));
-const SC={'Normal':'ok','Atenção':'warn','Risco moderado':'mod','Estado crítico':'crit'};
-const SL={ok:'Normal',warn:'Atenção',crit:'Crítico',off:'Sem comunicação'};
-const USERS=[['Administrador Geral','admin@exemplo.com','Total','hoje 08:12'],['Coordenação Técnica','tecnico@exemplo.com','Leitura + alertas','ontem 17:40']];
-const LOGS=['hoje 08:12 · admin@exemplo.com · login','ontem 17:40 · tecnico@exemplo.com · login','ontem 17:52 · tecnico@exemplo.com · consulta de relatório'];
+const CONFIG={
+ apiUrl:'https://playing-opportunity-summer-workforce.trycloudflare.com',            // endereço da API (sem barra no final)
+ rotas:{status:'/api/v1/status',historico:'/api/v1/historico'},
+ atualizarACadaMs:5000,                     // atualização automática (5 s)
+ // status_risco devolvido pela IA -> cor do site (ok, warn, crit). Se o modelo treinado
+ // devolver outros nomes, acrescente aqui. Nome desconhecido vira "warn" (amarelo).
+ mapaRisco:{normal:'ok',atencao:'warn',alerta:'crit',sensor_incompleto:'warn'},
+ // Limites usados nos gráficos (mesmos valores da análise inicial da API)
+ limites:{soloAtencaoV:1.8,soloCriticoV:2.5,inclinacaoAtencao:7,inclinacaoCritica:15,semContatoMin:5}
+};
 
-// ===== Cadastros feitos pelo administrador (locais e equipamentos novos) =====
-// Ficam salvos no navegador (localStorage) enquanto não existe backend. Com o backend, isto vira POST /api/locations e POST /api/devices.
-const STORE='aurora_cadastros';
-function novoEquip(id,area){DEV.push({id,area,loc:area.nome+' – '+area.det,hum:Array(N).fill(0),inc:Array(N).fill(0),tmp:Array(N).fill(0),bat:0,on:0,solar:'—',last:null,h:null,i:null,t:null,s:'off',novo:true})}
-function salvar(){try{localStorage.setItem(STORE,JSON.stringify({areas:AREAS.filter(a=>a.novo),devs:DEV.filter(d=>d.novo).map(d=>({id:d.id,area:d.area.nome}))}))}catch(e){}}
-function carregar(){try{const c=JSON.parse(localStorage.getItem(STORE)||'null');if(!c)return;c.areas.forEach(a=>AREAS.push(a));c.devs.forEach(x=>{const a=AREAS.find(y=>y.nome==x.area);if(a)novoEquip(x.id,a)})}catch(e){}}
-carregar();
+const SL={ok:'Normal',warn:'Atenção',crit:'Crítico',off:'Sem comunicação'};
+const SC={'Normal':'ok','Atenção':'warn','Risco moderado':'mod','Estado crítico':'crit'};
+
+// Dados em memória (montados por montar())
+const AREAS=[],DEV=[],ALERTS=[],USERS=[],LOGS=[];
+let REG=[],IA_MODELO=null;
+
+// ---------- utilitários ----------
+const norm=s=>String(s??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,'_');
+const num=v=>v==null||v===''?NaN:+v;
+const tempoDe=s=>new Date(String(s).replace(' ','T')).getTime();   // "recebido_em" vem sem fuso (hora do servidor)
+async function api(rota){const r=await fetch(CONFIG.apiUrl+rota);if(!r.ok)throw new Error(r.status+' '+r.statusText+' ('+rota+')');return r.json()}
+const guardar=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const ler=(k,p)=>{try{return JSON.parse(localStorage.getItem(k))||p}catch(e){return p}};
+
+// Locais cadastrados no site e vínculos equipamento -> local.
+// A API ainda não tem rota para isso, então ficam salvos neste navegador (localStorage).
+let MANUAIS=ler('aurora_locais',[]),VINCULOS=ler('aurora_vinculos',{});
+
+// ---------- montagem: envios da API -> equipamentos, locais e alertas ----------
+function montar(){
+ const lim=CONFIG.limites,cor=r=>CONFIG.mapaRisco[norm(r.ia.status_risco)]||'warn';
+ const maior=d=>d.mpu_ok?Math.max(Math.abs(d.inclinacao_x??0),Math.abs(d.inclinacao_y??0)):NaN;
+ const porEq={};REG.forEach(r=>{(porEq[r.dados.equipamento]=porEq[r.dados.equipamento]||[]).push(r)});
+ const areas=MANUAIS.map(a=>({...a,manual:true})),semLocal={id:'sem-local',nome:'Sem local',det:'GPS sem sinal',lat:NaN,lng:NaN};
+ const eqs=Object.entries(porEq).map(([id,rs])=>{
+  rs.sort((a,b)=>a.t-b.t);const u=rs[rs.length-1],d=u.dados,on=Date.now()-u.t<lim.semContatoMin*60000;
+  const gps=[...rs].reverse().find(r=>r.dados.gps_valido&&isFinite(num(r.dados.latitude))&&isFinite(num(r.dados.longitude)));
+  let area=areas.find(a=>a.manual&&a.nome==VINCULOS[id]);
+  if(!area&&gps){area={id:'gps-'+id,nome:id,det:'posição do GPS',lat:+gps.dados.latitude,lng:+gps.dados.longitude};areas.push(area)}
+  if(!area){area=semLocal;if(!areas.includes(semLocal))areas.push(semLocal)}
+  return{id,area,loc:area.nome+(area.det&&area.det!='—'?' – '+area.det:''),
+   hum:rs.map(r=>num(r.dados.solo_tensao)).filter(isFinite),
+   inc:rs.map(r=>maior(r.dados)).filter(isFinite),
+   tmp:rs.filter(r=>r.dados.temperatura_ok).map(r=>num(r.dados.temperatura)).filter(isFinite),
+   bat:null,solar:'—',on,last:u.t,
+   h:on?num(d.solo_tensao):null,i:on?maior(d):null,t:on&&d.temperatura_ok?num(d.temperatura):null,
+   x:d.inclinacao_x,y:d.inclinacao_y,sats:d.satelites,gps:!!gps,
+   ia:u.ia.status_risco||'—',iaResumo:u.ia.resumo||'',s:on?cor(u):'off'};
+ });
+ // Alertas: derivados da análise da IA (uma ocorrência a cada mudança de status) e da perda de comunicação
+ const alertas=[];
+ eqs.forEach(e=>{const rs=porEq[e.id];let ant=null;
+  rs.forEach(r=>{const k=norm(r.ia.status_risco);if(k!=ant){ant=k;if(cor(r)!='ok')alertas.push({dev:e,sev:cor(r)=='crit'?'Estado crítico':'Atenção',tipo:r.ia.status_risco||'—',desc:r.ia.resumo||'',ts:r.t,ativo:false,eq:e.id})}});
+  const ult=alertas.filter(a=>a.eq==e.id).pop();if(ult&&e.on&&e.s!='ok')ult.ativo=true;
+  if(!e.on)alertas.push({dev:e,sev:'Atenção',tipo:'Sem comunicação',desc:'Nenhum envio recebido há mais de '+lim.semContatoMin+' min.',ts:e.last,ativo:true,eq:e.id});
+ });
+ alertas.sort((a,b)=>b.ts-a.ts).forEach((a,k)=>a.n=k+1);
+ AREAS.splice(0,AREAS.length,...areas);DEV.splice(0,DEV.length,...eqs);ALERTS.splice(0,ALERTS.length,...alertas);
+}
+
+// ---------- carga dos dados ----------
+const SEM_RERENDER=['mapa','equipamentos','config']; // páginas com formulário: não redesenhar sozinhas
+function conn(ok,msg){const c=$('#conn');if(c){c.className='conn '+(ok?'ok':'err');c.textContent=msg}}
+const iaTexto=()=>IA_MODELO==null?'IA: estado desconhecido':IA_MODELO?'IA: modelo treinado carregado':'IA: análise local inicial (regras), sem modelo .pkl';
+
+async function atualizar(primeira){
+ try{
+  const [st,h]=await Promise.all([api(CONFIG.rotas.status).catch(()=>null),api(CONFIG.rotas.historico)]);
+  IA_MODELO=st?st.modelo_local_carregado:null;
+  REG=(h.registros||[]).map(r=>({t:tempoDe(r.recebido_em),dados:r.dados,ia:r.ia||{}})).filter(r=>r.dados&&!isNaN(r.t));
+  montar();
+  conn(true,`✔ Conectado à API (${CONFIG.apiUrl}) · atualizado às ${new Date().toLocaleTimeString('pt-BR')} · ${DEV.length?DEV.length+' equipamento(s)':'aguardando dados do ESP32'} · ${iaTexto()}`);
+  if(primeira||!SEM_RERENDER.includes(page))go();
+ }catch(err){
+  conn(false,`✖ Não foi possível carregar os dados da API (${CONFIG.apiUrl}): ${err.message}. Confira se a API está rodando (uvicorn) e o endereço em js/dados.js.`);
+ }
+}

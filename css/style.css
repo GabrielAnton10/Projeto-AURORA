@@ -46,3 +46,6 @@ svg.ch{width:100%;height:auto;display:block}
 #map .leaflet-container{height:100%}
 .tiles-dark{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9)}
 .leaflet-div-icon{background:none;border:0}
+.conn{border:1px solid var(--bd);color:var(--mut);border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:14px}
+.conn.ok{color:var(--ok);border-color:var(--ok)}
+.conn.err{color:#fca5a5;border-color:var(--crit);background:rgba(220,38,38,.1)}
