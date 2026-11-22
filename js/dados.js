@@ -7,7 +7,7 @@
 // Tudo que o site mostra é montado aqui a partir desses envios.
 // ============================================================
 const CONFIG={
- apiUrl:'https://run-please-diagnostic-trembl.trycloudflare.com',            // endereço da API (sem barra no final)
+ apiUrl:'https://casio-awarded-placing-aimed.trycloudflare.com',            // endereço da API (sem barra no final)
  rotas:{status:'/api/v1/status',historico:'/api/v1/historico'},
  atualizarACadaMs:5000,                     // atualização automática (5 s)
  // status_risco devolvido pela IA -> cor do site (ok, warn, crit). Se o modelo treinado
@@ -28,9 +28,24 @@ let REG=[],IA_MODELO=null;
 const norm=s=>String(s??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().replace(/\s+/g,'_');
 const num=v=>v==null||v===''?NaN:+v;
 const tempoDe=s=>new Date(String(s).replace(' ','T')).getTime();   // "recebido_em" vem sem fuso (hora do servidor)
-async function api(rota){const r=await fetch(CONFIG.apiUrl+rota);if(!r.ok)throw new Error(r.status+' '+r.statusText+' ('+rota+')');return r.json()}
 const guardar=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 const ler=(k,p)=>{try{return JSON.parse(localStorage.getItem(k))||p}catch(e){return p}};
+
+function getApiUrl(){
+ try{
+  const override=(localStorage.getItem('aurora_api_url')||'').trim().replace(/\/+$/,'');
+  return override||CONFIG.apiUrl;
+ }catch(e){
+  return CONFIG.apiUrl;
+ }
+}
+
+async function api(rota){
+ const baseUrl=getApiUrl();
+ const r=await fetch(baseUrl+rota);
+ if(!r.ok)throw new Error(r.status+' '+r.statusText+' ('+rota+')');
+ return r.json();
+}
 
 // Locais cadastrados no site e vínculos equipamento -> local.
 // A API ainda não tem rota para isso, então ficam salvos neste navegador (localStorage).
@@ -70,7 +85,30 @@ function montar(){
 
 // ---------- carga dos dados ----------
 const SEM_RERENDER=['mapa','equipamentos','config']; // páginas com formulário: não redesenhar sozinhas
-function conn(ok,msg){const c=$('#conn');if(c){c.className='conn '+(ok?'ok':'err');c.textContent=msg}}
+
+function aplicarEstiloBolinha(el,ok){
+ el.style.display='inline-block';
+ el.style.width='12px';
+ el.style.height='12px';
+ el.style.minWidth='12px';
+ el.style.minHeight='12px';
+ el.style.borderRadius='50%';
+ el.style.padding='0';
+ el.style.fontSize='0';
+ el.style.lineHeight='0';
+ el.style.backgroundColor=ok?'#16a34a':'#dc2626';
+ el.style.boxShadow=ok?'0 0 0 3px rgba(22,163,74,0.22)':'0 0 0 3px rgba(220,38,38,0.22)';
+ el.setAttribute('aria-label',ok?'API conectada':'API desconectada');
+}
+
+function conn(ok){
+ const c=document.querySelector('#conn')||(typeof $==='function'?$('#conn'):null);
+ if(!c)return;
+ c.textContent='';
+ c.className='conn api-led '+(ok?'ok':'err');
+ aplicarEstiloBolinha(c,ok);
+}
+
 const iaTexto=()=>IA_MODELO==null?'IA: estado desconhecido':IA_MODELO?'IA: modelo treinado carregado':'IA: análise local inicial (regras), sem modelo .pkl';
 
 async function atualizar(primeira){
@@ -79,9 +117,9 @@ async function atualizar(primeira){
   IA_MODELO=st?st.modelo_local_carregado:null;
   REG=(h.registros||[]).map(r=>({t:tempoDe(r.recebido_em),dados:r.dados,ia:r.ia||{}})).filter(r=>r.dados&&!isNaN(r.t));
   montar();
-  conn(true,`✔ Conectado à API (${CONFIG.apiUrl}) · atualizado às ${new Date().toLocaleTimeString('pt-BR')} · ${DEV.length?DEV.length+' equipamento(s)':'aguardando dados do ESP32'} · ${iaTexto()}`);
+  conn(true);
   if(primeira||!SEM_RERENDER.includes(page))go();
  }catch(err){
-  conn(false,`✖ Não foi possível carregar os dados da API (${CONFIG.apiUrl}): ${err.message}. Confira se a API está rodando (uvicorn) e o endereço em js/dados.js.`);
+  conn(false);
  }
 }
