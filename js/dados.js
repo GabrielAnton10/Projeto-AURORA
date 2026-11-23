@@ -7,8 +7,8 @@
 // Tudo que o site mostra é montado aqui a partir desses envios.
 // ============================================================
 const CONFIG={
- apiUrl:'http://localhost:8000',            // endereço da API (sem barra no final)
- rootas:{status:'/api/v1/status',historico:'/api/v1/historico'},
+ apiUrl:'https://referral-enjoying-brunswick-mason.trycloudflare.com',            // endereço da API (sem barra no final)
+ rotas:{status:'/api/v1/status',historico:'/api/v1/historico'},
  // Rotas opcionais para a API parar de aceitar os envios de um equipamento (veja INTEGRACAO.md). {id} vira o nome do equipamento.
  rotasEquip:{desconectar:'/api/v1/equipamentos/{id}/desconectar',reconectar:'/api/v1/equipamentos/{id}/reconectar'},
  atualizarACadaMs:5000,                     // atualização automática (5 s)
