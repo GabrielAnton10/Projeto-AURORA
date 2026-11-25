@@ -1,3 +1,5 @@
 aurora_admin.db
 .aurora_secret
 __pycache__/
+aurora_admin.db.*
+.pytest_cache/
