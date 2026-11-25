@@ -12,6 +12,9 @@ const tag = '';
 const f = (v, n, u) => v == null || isNaN(v) ? '-' : (+v).toFixed(n) + u;
 const vazio = t => '<div class="card" style="color:var(--mut)">' + t + '</div>';
 const $ = s => document.querySelector(s);
+const escH = t => String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// remove acentos para comparar textos (ex.: 'Atencao' x 'Atenção')
+const nz = s => String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 function line(series, opts) {
  const o = opts || {};
@@ -213,19 +216,45 @@ const PAGES = {
  alertas: ['Sistema de Alertas', () => {
   const opts = ['Todos', 'Normal', 'Atencao', 'Risco moderado', 'Estado critico']
    .map(s => '<option ' + (s == fa ? 'selected' : '') + '>' + s + '</option>').join('');
+  const ok = a => fa == 'Todos' || nz(a.sev) == nz(fa);
   return '<div class="f"><select onchange="fa=this.value;go()">' + opts + '</select></div>' +
    '<p style="color:var(--mut);margin:0 0 12px;font-size:12.5px">Os alertas sao gerados a partir da analise da IA nos ultimos envios (a API guarda so os 20 mais recentes) e da perda de comunicacao.</p>' +
-   '<div class="card"><h3>Ativos ' + tag + '</h3>' + alertRows(act().filter(a => fa == 'Todos' || a.sev == fa)) + '</div>' +
-   '<div class="card" style="margin-top:12px"><h3>Ocorrencias anteriores ' + tag + '</h3>' + alertRows(ALERTS.filter(a => !a.ativo && (fa == 'Todos' || a.sev == fa))) + '</div>';
+   '<div class="card"><h3>Ativos ' + tag + '</h3>' + alertRows(act().filter(ok)) + '</div>' +
+   '<div class="card" style="margin-top:12px"><h3>Ocorrencias anteriores ' + tag + '</h3>' + alertRows(ALERTS.filter(a => !a.ativo && ok(a))) + '</div>';
  }],
 
  equipamentos: ['Gerenciamento de Equipamentos', () => {
-  const opts = DEV.map(d => '<option value="' + d.id + '" ' + (d.id === selEq ? 'selected' : '') + '>' + d.id + '</option>').join('');
+  const sel = DEV.find(d => d.id === selEq) || DEV[0];
+  if (sel) selEq = sel.id;
+  const opts = DEV.map(d => '<option value="' + d.id + '" ' + (sel && d.id === sel.id ? 'selected' : '') + '>' + d.id + '</option>').join('');
+  const coord = sel && sel.area && isFinite(sel.area.lat) ? sel.area.lat.toFixed(5) + ', ' + sel.area.lng.toFixed(5) : '-';
+  const info = sel
+   ? '<div class="dev" style="border:0;margin-top:14px"><dl>' +
+     '<dt>Status</dt><dd><span class="pill ' + sel.s + '">' + SL[sel.s] + '</span></dd>' +
+     '<dt>Local</dt><dd>' + sel.loc + '</dd>' +
+     '<dt>Funcionamento</dt><dd>' + (sel.on ? 'Online' : sel.last ? 'Offline desde ' + fmt(sel.last) : 'Aguardando 1a leitura') + '</dd>' +
+     '<dt>Ultima comunicacao</dt><dd>' + fmt(sel.last) + '</dd>' +
+     '<dt>Analise da IA</dt><dd>' + sel.ia + '</dd>' +
+     '<dt>Solo (tensao)</dt><dd>' + f(sel.h, 2, ' V') + '</dd>' +
+     '<dt>Inclinacao</dt><dd>' + f(sel.i, 1, ' °') + '</dd>' +
+     '<dt>Inclinacao X / Y</dt><dd>' + (sel.on && sel.x != null ? sel.x + '° / ' + sel.y + '°' : '-') + '</dd>' +
+     '<dt>Temperatura</dt><dd>' + f(sel.t, 1, ' °C') + '</dd>' +
+     '<dt>GPS</dt><dd>' + (sel.gps ? sel.sats + ' satelites (' + coord + ')' : 'Sem sinal') + '</dd>' +
+     '</dl></div>'
+   : '<p style="color:var(--mut);margin:14px 0 0">Nenhum equipamento conectado no momento. Quando o ESP32 enviar dados a API, ele aparece aqui.</p>';
   const rows = DEV.map(d =>
-   '<tr><td>' + d.id + '</td><td>' + d.loc + '</td><td><span class="pill ' + d.s + '">' + SL[d.s] + '</span></td><td>' + d.ia + '</td><td>' + (d.gps ? d.sats + ' satelites' : 'Sem sinal') + '</td><td>' + fmt(d.last) + '</td><td>' + (d.on ? 'Online' : 'Offline desde ' + fmt(d.last)) + '</td></tr>'
+   '<tr><td>' + d.id + '</td><td>' + d.loc + '</td><td><span class="pill ' + d.s + '">' + SL[d.s] + '</span></td><td>' + d.ia + '</td><td>' + (d.gps ? d.sats + ' satelites' : 'Sem sinal') + '</td><td>' + fmt(d.last) + '</td><td>' + (d.on ? 'Online' : d.last ? 'Offline desde ' + fmt(d.last) : 'Aguardando 1a leitura') + '</td><td><button class="btn s" onclick="desconectar(\'' + d.id + '\')">Desconectar</button>' + (CADASTRADOS.includes(d.id) ? ' <button class="btn s" onclick="excluirEquip(\'' + d.id + '\')">Excluir cadastro</button>' : '') + '</td></tr>'
   ).join('');
-  return '<div class="card"><h3>Vincular equipamento a um local</h3><p style="color:var(--mut);margin:0 0 10px">Os equipamentos aparecem sozinhos quando enviam dados a API. Escolha um local cadastrado para o equipamento; sem vinculo, o site usa a posicao do GPS.</p><div class="f"><select id="ve" onchange="selEq=this.value">' + opts + '</select><button class="btn" onclick="vincular()">Vincular</button><button class="btn s" onclick="vincular(true)">Desfazer vinculo</button></div></div>' +
-   '<div class="card" style="margin-top:12px"><div class="tw"><table><tr><th>ID</th><th>Local</th><th>Status</th><th>Analise da IA</th><th>GPS</th><th>Ultimo contato</th><th>Funcionamento</th></tr>' + (rows || '<tr><td colspan=7>Nenhum equipamento enviou dados ainda.</td></tr>') + '</table></div></div>';
+  const desc = IGNORADOS.length
+   ? '<div class="card" style="margin-top:12px"><h3>Equipamentos desconectados</h3><p style="color:var(--mut);margin:0 0 10px">O site ignora estes equipamentos (sem tela, graficos ou alertas) ate voce reconecta-los.</p><div class="f">' +
+     IGNORADOS.map(id => '<span style="display:flex;gap:8px;align-items:center">' + id + '<button class="btn s" onclick="reconectar(\'' + id + '\')">Reconectar</button></span>').join('') +
+     '</div></div>'
+   : '';
+  const esc = t => String(t).replace(/"/g, '&quot;');
+  const locsOpts = '<option value="">Usar a posicao do GPS</option>' + MANUAIS.map(a => '<option ' + (a.nome === rascunhoEq.loc ? 'selected' : '') + '>' + a.nome + '</option>').join('');
+  const cad = '<div class="card"><h3>Cadastrar novo equipamento</h3><p style="color:var(--mut);margin:0 0 10px">Use o mesmo nome que o ESP32 envia no campo <b>equipamento</b>. Ate enviar o primeiro dado, ele aparece como "aguardando 1a leitura". O local e opcional (cadastre locais na pagina Mapa de Risco).</p><div class="f"><input id="ne" placeholder="ID do equipamento (ex.: AURORA_V1_Firmware)" value="' + esc(rascunhoEq.id) + '" oninput="rascunhoEq.id=this.value"><select id="nl" onchange="rascunhoEq.loc=this.value">' + locsOpts + '</select><button class="btn" onclick="cadastrarEquip()">Cadastrar</button></div></div>';
+  return cad + '<div class="card" style="margin-top:12px"><h3>Equipamento</h3><p style="color:var(--mut);margin:0 0 10px">Escolha o equipamento para ver as informacoes. <b>Desconectar</b> corta a comunicacao dele com o site: ele deixa de aparecer e de gerar alertas.</p><div class="f"><select id="ve" onchange="selEq=this.value;go()">' + opts + '</select>' + (sel ? '<button class="btn s" onclick="desconectar()">Desconectar</button>' : '') + '</div>' + info + '</div>' +
+   '<div class="card" style="margin-top:12px"><div class="tw"><table><tr><th>ID</th><th>Local</th><th>Status</th><th>Analise da IA</th><th>GPS</th><th>Ultimo contato</th><th>Funcionamento</th><th></th></tr>' + (rows || '<tr><td colspan=8>Nenhum equipamento enviou dados ainda.</td></tr>') + '</table></div></div>' + desc;
  }],
 
  historico: ['Historico e Relatorios', () => {
@@ -235,23 +264,76 @@ const PAGES = {
   );
   const opts = '<option>Todos</option>' + DEV.map(d => '<option ' + (d.id == hf.d ? 'selected' : '') + '>' + d.id + '</option>').join('');
   return '<div class="f"><input type="date" value="' + hf.t + '" onchange="hf.t=this.value;go()"><select onchange="hf.d=this.value;go()">' + opts + '</select></div>' +
-   '<div class="grid g2"><div class="card"><h3>Tensao media do sensor de solo (V)</h3>' + line([avg()], { min: 0, max: 3.3 }) + '</div><div class="card"><h3>Ocorrencias criticas</h3><b style="font-size:28px">' + l.filter(a => a.sev == 'Estado critico').length + '</b></div></div>' +
+   '<div class="grid g2"><div class="card"><h3>Tensao media do sensor de solo (V)</h3>' + line([avg()], { min: 0, max: 3.3 }) + '</div><div class="card"><h3>Ocorrencias criticas</h3><b style="font-size:28px">' + l.filter(a => nz(a.sev) == 'Estado critico').length + '</b></div></div>' +
    '<div class="card" style="margin-top:12px"><h3>Historico de alertas ' + tag + '</h3>' + alertRows(l) + '</div>';
  }],
 
  config: ['Configuracoes', () =>
   '<div class="grid g2">' +
   '<div class="card"><h3>Conexao com a API</h3><p style="margin:0 0 8px;color:var(--mut)">Endereco: <b>' + CONFIG.apiUrl + '</b><br>Rotas: ' + Object.values(CONFIG.rotas).join(' · ') + '<br>Atualizacao a cada ' + (CONFIG.atualizarACadaMs / 1000) + ' s<br>' + iaTexto() + '</p><p style="margin:0;color:var(--mut)">Para mudar o endereco, as rotas ou os limites, edite <code>js/dados.js</code>.</p></div>' +
-  '<div class="card"><h3>Administradores</h3><p style="margin:0;color:var(--mut)">A API atual ainda nao tem login nem cadastro de administradores. Quando existir, esta area passa a listar os usuarios e os registros de acesso.</p></div>' +
+  cardUsuarios() +
   '</div>'
  ]
 };
+
+// ---------- Usuarios com acesso ao painel ----------
+function cardUsuarios() {
+ const rows = USUARIOS.map((u, i) =>
+  '<tr><td>' + escH(u.email) + '</td><td>' + fmt(u.criado) + '</td><td><button class="btn s" onclick="removerUsuario(' + i + ')">Remover</button></td></tr>'
+ ).join('');
+ const aviso = CONFIG.exigirLogin
+  ? 'O login exige e-mail e senha de um usuario cadastrado.'
+  : 'O login ainda esta aberto: para exigir usuario e senha, mude CONFIG.exigirLogin para true em js/dados.js.';
+ return '<div class="card"><h3>Usuarios com acesso</h3><p style="margin:0 0 10px;color:var(--mut)">Cadastre quem pode entrar no painel. ' + aviso + ' Os cadastros ficam salvos so neste navegador, porque a API ainda nao tem login.</p>' +
+  '<div class="tw"><table><tr><th>E-mail</th><th>Criado em</th><th></th></tr>' + (rows || '<tr><td colspan=3>Nenhum usuario cadastrado.</td></tr>') + '</table></div>' +
+  '<div class="f" style="margin-top:10px"><input id="ue" placeholder="E-mail"><input id="us" type="password" placeholder="Senha (minimo 6 caracteres)" autocomplete="new-password"><button class="btn" onclick="cadastrarUsuario()">Cadastrar usuario</button></div></div>';
+}
+
+async function cadastrarUsuario() {
+ const email = $('#ue').value.trim().toLowerCase();
+ const senha = $('#us').value;
+ if (!email || !senha) {
+  alert('Informe o e-mail e a senha.');
+  return;
+ }
+ if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+  alert('E-mail invalido.');
+  return;
+ }
+ if (senha.length < 6) {
+  alert('A senha precisa ter pelo menos 6 caracteres.');
+  return;
+ }
+ if (USUARIOS.some(u => u.email == email)) {
+  alert('Ja existe um usuario com esse e-mail.');
+  return;
+ }
+ let hash;
+ try {
+  hash = await hashSenha(email, senha);
+ } catch (e) {
+  alert('Este navegador nao permite proteger a senha neste endereco. Abra o site por localhost ou https.');
+  return;
+ }
+ USUARIOS.push({ email: email, hash: hash, criado: Date.now() });
+ guardar('aurora_usuarios', USUARIOS);
+ go();
+}
+
+function removerUsuario(i) {
+ const u = USUARIOS[i];
+ if (!u || !confirm('Remover o usuario ' + u.email + '?')) return;
+ USUARIOS.splice(i, 1);
+ guardar('aurora_usuarios', USUARIOS);
+ go();
+}
 
 let cur = 0;
 let fa = 'Todos';
 let hf = { d: 'Todos', s: 'Todos', t: '' };
 let page = 'dashboard';
 let selEq = '';
+let rascunhoEq = { id: '', loc: '' };   // guarda o que voce digitou no cadastro de equipamento entre as atualizacoes
 
 const ICON = {
  dashboard: '▦',
@@ -281,21 +363,46 @@ function go() {
 
 let timer;
 
-function enter_(e) {
- e.preventDefault();
+function entrar() {
+ try { sessionStorage.setItem('aurora_logado', '1'); } catch (e) {}
  $('#login').classList.add('hide');
  $('#app').classList.remove('hide');
  go();
  atualizar(true);
  clearInterval(timer);
  timer = setInterval(() => atualizar(false), CONFIG.atualizarACadaMs);
+}
+
+async function enter_(e) {
+ e.preventDefault();
+ if (CONFIG.exigirLogin && USUARIOS.length) {
+  const email = $('#u').value.trim().toLowerCase();
+  let ok = false;
+  try {
+   const h = await hashSenha(email, $('#p').value);
+   ok = USUARIOS.some(u => u.email == email && u.hash == h);
+  } catch (err) {}
+  if (!ok) {
+   alert('Usuario ou senha invalidos.');
+   return false;
+  }
+ }
+ entrar();
  return false;
 }
 
 function logout() {
+ try { sessionStorage.removeItem('aurora_logado'); } catch (e) {}
  clearInterval(timer);
  $('#app').classList.add('hide');
  $('#login').classList.remove('hide');
+}
+
+// Clique na logo: volta para o inicio (Dashboard) e atualiza a pagina (como o F5)
+function irInicio() {
+ try { sessionStorage.setItem('aurora_logado', '1'); } catch (e) {}
+ location.hash = 'dashboard';
+ location.reload();
 }
 
 function addArea() {
@@ -335,34 +442,67 @@ function delLocal(i) {
  go();
 }
 
-function vincular(desfazer) {
- const sel = $('#ve');
- const e = sel ? sel.value : '';
- if (!e) {
-  alert('Nenhum equipamento disponivel para vincular ou desvincular.');
+// "Desconectar": corta a comunicacao do equipamento com o site e pede a API que pare de aceitar os envios dele (se ela tiver a rota)
+async function desconectar(id) {
+ id = id || selEq || (DEV[0] && DEV[0].id);
+ if (!id) {
+  alert('Nenhum equipamento conectado no momento.');
   return;
  }
-
- selEq = e;
-
- if (desfazer) {
-  if (!(e in VINCULOS)) {
-   alert('Este equipamento nao possui vinculo ativo.');
-   return;
-  }
-  delete VINCULOS[e];
- } else {
-  const localAlvo = MANUAIS[0] ? MANUAIS[0].nome : '';
-  if (!localAlvo) {
-   alert('Cadastre um local primeiro (pagina Mapa de Risco).');
-   return;
-  }
-  VINCULOS[e] = localAlvo;
- }
-
+ if (!confirm('Desconectar ' + id + '? Ele deixa de aparecer no site e de gerar alertas, e a API deixa de aceitar os envios dele (se tiver a rota de bloqueio).')) return;
+ if (!IGNORADOS.includes(id)) IGNORADOS.push(id);
+ delete VINCULOS[id];
+ guardar('aurora_ignorados', IGNORADOS);
  guardar('aurora_vinculos', VINCULOS);
  montar();
  go();
+ const ok = await apiPost(CONFIG.rotasEquip.desconectar.replace('{id}', encodeURIComponent(id)));
+ if (!ok) alert('Equipamento desconectado do site. Mas a API nao confirmou o bloqueio (a rota ainda nao existe nela, ou ela esta fora do ar), entao o ESP32 continua enviando dados a ela. Veja o guia INTEGRACAO.md.');
+}
+
+// Cadastrar equipamento: guarda o ID (e o local, se escolhido) neste navegador. Quando o ESP32 enviar dados com esse nome, eles aparecem normalmente.
+function cadastrarEquip() {
+ const id = rascunhoEq.id.trim();
+ const loc = rascunhoEq.loc;
+ if (!id) {
+  alert('Informe o ID do equipamento (o mesmo nome que o ESP32 envia no campo "equipamento").');
+  return;
+ }
+ if (CADASTRADOS.includes(id)) {
+  alert('Este equipamento ja esta cadastrado. Para refazer, use "Excluir cadastro" na tabela.');
+  return;
+ }
+ if (IGNORADOS.includes(id)) {
+  alert('Este equipamento esta desconectado. Use "Reconectar" no quadro de equipamentos desconectados.');
+  return;
+ }
+ CADASTRADOS.push(id);
+ if (loc) VINCULOS[id] = loc;
+ guardar('aurora_equipamentos', CADASTRADOS);
+ guardar('aurora_vinculos', VINCULOS);
+ rascunhoEq = { id: '', loc: '' };
+ selEq = id;
+ montar();
+ go();
+}
+
+function excluirEquip(id) {
+ if (!confirm('Excluir o cadastro de ' + id + '? Se ele estiver enviando dados a API, continuara aparecendo automaticamente, sem o local escolhido.')) return;
+ CADASTRADOS = CADASTRADOS.filter(x => x != id);
+ delete VINCULOS[id];
+ guardar('aurora_equipamentos', CADASTRADOS);
+ guardar('aurora_vinculos', VINCULOS);
+ montar();
+ go();
+}
+
+async function reconectar(id) {
+ IGNORADOS = IGNORADOS.filter(x => x != id);
+ guardar('aurora_ignorados', IGNORADOS);
+ montar();
+ go();
+ await apiPost(CONFIG.rotasEquip.reconectar.replace('{id}', encodeURIComponent(id)));
+ atualizar(true);
 }
 
 addEventListener('hashchange', () => {
@@ -372,3 +512,8 @@ addEventListener('hashchange', () => {
 setInterval(() => {
  $('#clk').textContent = new Date().toLocaleString('pt-BR');
 }, 1000);
+
+// Depois de atualizar a pagina (F5 ou clique na logo), continua dentro do painel
+try {
+ if (sessionStorage.getItem('aurora_logado') === '1') entrar();
+} catch (e) {}
