@@ -11,8 +11,9 @@ const CONFIG={
  rotas:{status:'/api/v1/status',historico:'/api/v1/historico'},
  // Rotas opcionais para a API parar de aceitar os envios de um equipamento (veja INTEGRACAO.md). {id} vira o nome do equipamento.
  rotasEquip:{desconectar:'/api/v1/equipamentos/{id}/desconectar',reconectar:'/api/v1/equipamentos/{id}/reconectar'},
+ // API de administradores (api/routes.py). Deixe '' se ela estiver registrada na mesma API (apiUrl).
+ adminUrl:'http://localhost:8001',
  atualizarACadaMs:5000,                     // atualização automática (5 s)
- exigirLogin:false,                        // true = o login passa a exigir um usuario cadastrado em Configuracoes (so neste navegador; seguranca real exige back-end)
  timeoutMs:8000,                           // sem resposta em 8 s = API desconectada
  urlFonte:'',                               // (opcional) endereço de um JSON {"url":"https://..."} com a URL atual da API
  // status_risco devolvido pela IA -> cor do site (ok, warn, crit). Se o modelo treinado
@@ -62,12 +63,8 @@ const ler=(k,p)=>{try{return JSON.parse(localStorage.getItem(k))||p}catch(e){ret
 
 // Locais cadastrados no site e vínculos equipamento -> local.
 // A API ainda não tem rota para isso, então ficam salvos neste navegador (localStorage).
+// IGNORADOS = equipamentos desvinculados do site
 let MANUAIS=ler('aurora_locais',[]),VINCULOS=ler('aurora_vinculos',{}),IGNORADOS=ler('aurora_ignorados',[]),CADASTRADOS=ler('aurora_equipamentos',[]);
-// Usuarios com acesso ao painel (cadastrados em Configuracoes). A API ainda nao tem login, entao ficam salvos neste navegador.
-let USUARIOS=ler('aurora_usuarios',[]);
-async function hashSenha(email,senha){   // a senha nunca e guardada: so o hash SHA-256
- const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('aurora:'+email+':'+senha));
- return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('')} // IGNORADOS = equipamentos desvinculados do site
 
 // ---------- montagem: envios da API -> equipamentos, locais e alertas ----------
 function montar(){
@@ -146,3 +143,55 @@ async function atualizar(primeira){
   if(mudou){REG=[];IA_MODELO=null;ULT_STATUS=0;montar();go()}   // API caiu: limpa os dados da tela
  }
 }
+
+// ---------- administradores (api/routes.py) ----------
+// Login, cadastro e lista de administradores. O token fica em sessionStorage
+// (some ao fechar a aba) e é enviado em "Authorization: Bearer <token>".
+const ADMIN={
+ rota:'/api/v1/admin',
+ get token(){try{return sessionStorage.getItem('aurora_token')||''}catch(e){return ''}},
+ set token(v){try{v?sessionStorage.setItem('aurora_token',v):sessionStorage.removeItem('aurora_token')}catch(e){}},
+ eu:null
+};
+
+function getAdminUrl(){
+ return (CONFIG.adminUrl||'').trim().replace(/\/+$/,'')||CONFIG.apiUrl;
+}
+
+async function apiAdmin(metodo,rota,corpo){
+ const h={};
+ if(corpo!==undefined)h['Content-Type']='application/json';
+ if(ADMIN.token)h.Authorization='Bearer '+ADMIN.token;
+ let r;
+ try{
+  r=await fetch(getAdminUrl()+ADMIN.rota+rota,{method:metodo,headers:h,body:corpo===undefined?undefined:JSON.stringify(corpo)});
+ }catch(e){
+  throw new Error('Não foi possível conectar à API de administradores ('+getAdminUrl()+').');
+ }
+ const j=await r.json().catch(()=>({}));
+ if(!r.ok){
+  const e=new Error((j.erros&&j.erros.join('\n'))||j.erro||('Erro '+r.status));
+  e.status=r.status;
+  throw e;
+ }
+ return j;
+}
+
+async function adminLogin(email,senha){
+ const j=await apiAdmin('POST','/login',{email,senha});
+ ADMIN.token=j.token;ADMIN.eu=j.usuario;
+ return j.usuario;
+}
+const adminCadastrar=dados=>apiAdmin('POST','/cadastro',dados);
+async function adminSessao(){            // valida o token salvo (ex.: ao recarregar a página)
+ if(!ADMIN.token)return null;
+ try{ADMIN.eu=(await apiAdmin('GET','/me')).usuario;return ADMIN.eu}
+ catch(e){if(e.status==401)ADMIN.token='';return null}
+}
+async function adminCarregarUsuarios(){
+ const [u,a]=await Promise.all([apiAdmin('GET','/usuarios'),apiAdmin('GET','/acessos')]);
+ USERS.splice(0,USERS.length,...u.usuarios);
+ LOGS.splice(0,LOGS.length,...a.acessos);
+}
+const adminRemover=id=>apiAdmin('DELETE','/usuarios/'+id);
+function adminSair(){ADMIN.token='';ADMIN.eu=null;USERS.length=0;LOGS.length=0}

@@ -37,5 +37,25 @@ Sem envio há mais de 5 minutos (`CONFIG.limites.semContatoMin`), o equipamento 
 - Não há bateria nem energia solar: o site não mostra esses campos.
 - Não há rota de alertas: o site cria os alertas a partir de `ia.status_risco` e da perda de comunicação.
 - Não há rota de locais: o site usa o GPS do equipamento, ou locais cadastrados no próprio site (salvos no navegador).
-- Não há login nem administradores.
 - O histórico guarda só 20 envios e some quando a API reinicia.
+
+## Administradores (login do painel)
+Ficam em `api/routes.py` (Flask + SQLite). Todo usuário cadastrado é administrador do painel.
+1. Instale: `pip install flask flask-cors`
+2. Crie o primeiro administrador (só na primeira vez), dentro da pasta `api`: `python routes.py criar-admin`
+3. Rode a API: `python routes.py` (porta 8001) e deixe o terminal aberto.
+4. Abra o site, entre com o **e-mail** e a senha. Novos administradores são cadastrados em *Configurações > Administradores* (nome, e-mail, senha e permissão).
+
+O endereço fica em `CONFIG.adminUrl` (`js/dados.js`). Se registrar o blueprint na API principal (`app.register_blueprint(admin_bp)`), deixe `adminUrl: ''` para usar o mesmo endereço de `apiUrl`.
+
+| Rota | Uso |
+|---|---|
+| `POST /api/v1/admin/login` | Login (`email`, `senha`), devolve o token |
+| `POST /api/v1/admin/cadastro` | Cadastra administrador (`nome`, `email`, `senha`, `permissao`) |
+| `GET /api/v1/admin/me` | Administrador logado |
+| `GET /api/v1/admin/usuarios` | Lista de administradores |
+| `DELETE /api/v1/admin/usuarios/<id>` | Remove um administrador (sem botão no site) |
+| `GET /api/v1/admin/acessos` | Últimos 50 logins (aceitos e recusados) |
+
+Permissões aceitas: `Total`, `Leitura + alertas`, `Somente leitura` (por enquanto só ficam registradas, não limitam o acesso).
+As rotas, exceto o login, exigem `Authorization: Bearer <token>` (válido por 8 h). O banco fica em `api/aurora_admin.db` e a chave dos tokens em `api/.aurora_secret`; nenhum dos dois deve ir para o Git.

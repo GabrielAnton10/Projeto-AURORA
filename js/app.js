@@ -270,63 +270,14 @@ const PAGES = {
 
  config: ['Configuracoes', () =>
   '<div class="grid g2">' +
-  '<div class="card"><h3>Conexao com a API</h3><p style="margin:0 0 8px;color:var(--mut)">Endereco: <b>' + CONFIG.apiUrl + '</b><br>Rotas: ' + Object.values(CONFIG.rotas).join(' · ') + '<br>Atualizacao a cada ' + (CONFIG.atualizarACadaMs / 1000) + ' s<br>' + iaTexto() + '</p><p style="margin:0;color:var(--mut)">Para mudar o endereco, as rotas ou os limites, edite <code>js/dados.js</code>.</p></div>' +
-  cardUsuarios() +
-  '</div>'
+  '<div class="card"><h3>Administradores</h3><div class="tw"><table><tr><th>Nome</th><th>E-mail</th><th>Permissão</th><th>Último acesso</th></tr><tbody id="admT">' + linhasAdmins() + '</tbody></table></div>' +
+  '<div class="f" style="margin-top:10px"><input id="an" placeholder="Nome"><input id="ae" placeholder="E-mail"><input id="as" type="password" placeholder="Senha" autocomplete="new-password"><select id="ap"><option>Total</option><option>Leitura + alertas</option><option>Somente leitura</option></select><button class="btn" onclick="addU()">Adicionar</button></div></div>' +
+  '<div class="card"><h3>Registros de acesso</h3><div id="logs">' + linhasLogs() + '</div></div>' +
+  '</div>' +
+  '<div class="card" style="margin-top:12px"><h3>Conexao com a API</h3><p style="margin:0 0 8px;color:var(--mut)">Endereco: <b>' + CONFIG.apiUrl + '</b><br>Rotas: ' + Object.values(CONFIG.rotas).join(' · ') + '<br>Atualizacao a cada ' + (CONFIG.atualizarACadaMs / 1000) + ' s<br>' + iaTexto() + '</p><p style="margin:0;color:var(--mut)">Para mudar o endereco, as rotas ou os limites, edite <code>js/dados.js</code>.</p></div>',
+  carregarAdmins
  ]
 };
-
-// ---------- Usuarios com acesso ao painel ----------
-function cardUsuarios() {
- const rows = USUARIOS.map((u, i) =>
-  '<tr><td>' + escH(u.email) + '</td><td>' + fmt(u.criado) + '</td><td><button class="btn s" onclick="removerUsuario(' + i + ')">Remover</button></td></tr>'
- ).join('');
- const aviso = CONFIG.exigirLogin
-  ? 'O login exige e-mail e senha de um usuario cadastrado.'
-  : 'O login ainda esta aberto: para exigir usuario e senha, mude CONFIG.exigirLogin para true em js/dados.js.';
- return '<div class="card"><h3>Usuarios com acesso</h3><p style="margin:0 0 10px;color:var(--mut)">Cadastre quem pode entrar no painel. ' + aviso + ' Os cadastros ficam salvos so neste navegador, porque a API ainda nao tem login.</p>' +
-  '<div class="tw"><table><tr><th>E-mail</th><th>Criado em</th><th></th></tr>' + (rows || '<tr><td colspan=3>Nenhum usuario cadastrado.</td></tr>') + '</table></div>' +
-  '<div class="f" style="margin-top:10px"><input id="ue" placeholder="E-mail"><input id="us" type="password" placeholder="Senha (minimo 6 caracteres)" autocomplete="new-password"><button class="btn" onclick="cadastrarUsuario()">Cadastrar usuario</button></div></div>';
-}
-
-async function cadastrarUsuario() {
- const email = $('#ue').value.trim().toLowerCase();
- const senha = $('#us').value;
- if (!email || !senha) {
-  alert('Informe o e-mail e a senha.');
-  return;
- }
- if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-  alert('E-mail invalido.');
-  return;
- }
- if (senha.length < 6) {
-  alert('A senha precisa ter pelo menos 6 caracteres.');
-  return;
- }
- if (USUARIOS.some(u => u.email == email)) {
-  alert('Ja existe um usuario com esse e-mail.');
-  return;
- }
- let hash;
- try {
-  hash = await hashSenha(email, senha);
- } catch (e) {
-  alert('Este navegador nao permite proteger a senha neste endereco. Abra o site por localhost ou https.');
-  return;
- }
- USUARIOS.push({ email: email, hash: hash, criado: Date.now() });
- guardar('aurora_usuarios', USUARIOS);
- go();
-}
-
-function removerUsuario(i) {
- const u = USUARIOS[i];
- if (!u || !confirm('Remover o usuario ' + u.email + '?')) return;
- USUARIOS.splice(i, 1);
- guardar('aurora_usuarios', USUARIOS);
- go();
-}
 
 let cur = 0;
 let fa = 'Todos';
@@ -363,8 +314,9 @@ function go() {
 
 let timer;
 
-function entrar() {
- try { sessionStorage.setItem('aurora_logado', '1'); } catch (e) {}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+function abrirPainel() {
  $('#login').classList.add('hide');
  $('#app').classList.remove('hide');
  go();
@@ -373,36 +325,87 @@ function entrar() {
  timer = setInterval(() => atualizar(false), CONFIG.atualizarACadaMs);
 }
 
+// Login: confere e-mail e senha na API de administradores (api/routes.py)
 async function enter_(e) {
  e.preventDefault();
- if (CONFIG.exigirLogin && USUARIOS.length) {
-  const email = $('#u').value.trim().toLowerCase();
-  let ok = false;
-  try {
-   const h = await hashSenha(email, $('#p').value);
-   ok = USUARIOS.some(u => u.email == email && u.hash == h);
-  } catch (err) {}
-  if (!ok) {
-   alert('Usuario ou senha invalidos.');
-   return false;
-  }
+ const btn = $('#login .btn');
+ btn.disabled = true;
+ try {
+  await adminLogin($('#u').value.trim(), $('#p').value);
+  $('#p').value = '';
+  abrirPainel();
+ } catch (err) {
+  alert(err.message);
+ } finally {
+  btn.disabled = false;
  }
- entrar();
  return false;
 }
 
 function logout() {
- try { sessionStorage.removeItem('aurora_logado'); } catch (e) {}
  clearInterval(timer);
+ adminSair();
  $('#app').classList.add('hide');
  $('#login').classList.remove('hide');
 }
 
-// Clique na logo: volta para o inicio (Dashboard) e atualiza a pagina (como o F5)
+// Clique na logo: volta para o inicio (Dashboard) e atualiza a pagina (como o F5).
+// Continua logado porque o token fica salvo em sessionStorage (veja iniciarLogin).
 function irInicio() {
- try { sessionStorage.setItem('aurora_logado', '1'); } catch (e) {}
  location.hash = 'dashboard';
  location.reload();
+}
+
+// Sessao expirada ou administrador removido: volta para o login
+function sessaoExpirada(err) {
+ if (err && err.status === 401) {
+  logout();
+  alert('Sua sessao expirou. Entre novamente.');
+  return true;
+ }
+ return false;
+}
+
+// Ao recarregar a pagina, continua logado se o token ainda for valido
+async function iniciarLogin() {
+ if (await adminSessao()) abrirPainel();
+}
+
+// ---------- pagina Configuracoes: administradores (dados da API) ----------
+const linhasAdmins = () => USERS.map(u =>
+ '<tr><td>' + esc(u.nome) + '</td><td>' + esc(u.email) + '</td><td>' + esc(u.permissao) + '</td><td>' + (u.ultimo_login ? fmt(u.ultimo_login) : 'nunca') + '</td></tr>'
+).join('') || '<tr><td colspan=4 style="color:var(--mut)">Carregando...</td></tr>';
+
+const linhasLogs = () => LOGS.map(x =>
+ '<div style="padding:6px 0;border-bottom:1px solid var(--bd)">' + fmt(x.em) + ' · ' + esc(x.email) + ' · ' + (x.sucesso ? 'login' : 'login recusado') + '</div>'
+).join('') || '<div style="color:var(--mut)">Nenhum acesso registrado.</div>';
+
+async function carregarAdmins() {
+ try {
+  await adminCarregarUsuarios();
+ } catch (err) {
+  if (!sessaoExpirada(err) && $('#admT')) $('#admT').innerHTML = '<tr><td colspan=4>' + esc(err.message) + '</td></tr>';
+  return;
+ }
+ if ($('#admT')) $('#admT').innerHTML = linhasAdmins();
+ if ($('#logs')) $('#logs').innerHTML = linhasLogs();
+}
+
+async function addU() {
+ const n = $('#an').value.trim();
+ const e = $('#ae').value.trim();
+ const s = $('#as').value;
+ if (!n || !e || !s) {
+  alert('Preencha nome, e-mail e senha.');
+  return;
+ }
+ try {
+  await adminCadastrar({ nome: n, email: e, senha: s, permissao: $('#ap').value });
+  ['#an', '#ae', '#as'].forEach(id => $(id).value = '');
+  carregarAdmins();
+ } catch (err) {
+  if (!sessaoExpirada(err)) alert(err.message);
+ }
 }
 
 function addArea() {
@@ -513,7 +516,5 @@ setInterval(() => {
  $('#clk').textContent = new Date().toLocaleString('pt-BR');
 }, 1000);
 
-// Depois de atualizar a pagina (F5 ou clique na logo), continua dentro do painel
-try {
- if (sessionStorage.getItem('aurora_logado') === '1') entrar();
-} catch (e) {}
+// Depois de atualizar a pagina (F5 ou clique na logo), continua no painel se o token ainda for valido
+iniciarLogin();
