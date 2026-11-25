@@ -20,6 +20,7 @@ CAMINHO_DB = Path(os.environ.get("AURORA_DB", PASTA / "aurora_admin.db"))
 TOKEN_VALIDADE_S = 8 * 60 * 60  # 8 horas
 SENHA_MIN = 8
 PERMISSOES = ("Total", "Leitura + alertas", "Somente leitura")
+CAMPOS_CADASTRO = ("nome", "email", "senha", "permissao")
 RE_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -119,6 +120,8 @@ def validar_cadastro(nome: str, email: str, permissao: str, senha: str) -> list[
         erros.append("Permissao invalida (use: " + ", ".join(PERMISSOES) + ")")
     if len(senha) < SENHA_MIN:
         erros.append(f"A senha deve ter pelo menos {SENHA_MIN} caracteres")
+    elif not senha.strip():
+        erros.append("A senha nao pode ser so espacos")
     return erros
 
 
@@ -199,10 +202,22 @@ def login():
 @requer_admin
 def cadastrar():
     dados = request.get_json(silent=True) or {}
-    nome = str(dados.get("nome", "")).strip()
-    email = str(dados.get("email", "")).strip().lower()
-    permissao = str(dados.get("permissao", "")).strip()
-    senha = str(dados.get("senha", ""))
+    if not isinstance(dados, dict):
+        dados = {}
+
+    # Cada campo precisa ser texto; numero, lista etc. nao sao convertidos
+    erros_tipo = [
+        f"O campo '{campo}' deve ser texto"
+        for campo in CAMPOS_CADASTRO
+        if not isinstance(dados.get(campo, ""), str)
+    ]
+    if erros_tipo:
+        return _erro("Dados invalidos", 422, erros=erros_tipo)
+
+    nome = dados.get("nome", "").strip()
+    email = dados.get("email", "").strip().lower()
+    permissao = dados.get("permissao", "").strip()
+    senha = dados.get("senha", "")
 
     erros = validar_cadastro(nome, email, permissao, senha)
     if erros:
