@@ -8,7 +8,7 @@
 // ============================================================
 const CONFIG={
  apiUrl:'',            // endereço da API (sem barra no final)
- rotas:{status:'/api/v1/status',historico:'/api/v1/historico'},
+ rootas:{status:'/api/v1/status',historico:'/api/v1/historico'},
  atualizarACadaMs:5000,                     // atualização automática (5 s)
  // status_risco devolvido pela IA -> cor do site (ok, warn, crit). Se o modelo treinado
  // devolver outros nomes, acrescente aqui. Nome desconhecido vira "warn" (amarelo).
