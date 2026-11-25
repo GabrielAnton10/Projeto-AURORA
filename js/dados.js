@@ -7,7 +7,7 @@
 // Tudo que o site mostra é montado aqui a partir desses envios.
 // ============================================================
 const CONFIG={
- apiUrl:'https://casio-awarded-placing-aimed.trycloudflare.com',            // endereço da API (sem barra no final)
+ apiUrl:'',            // endereço da API (sem barra no final)
  rotas:{status:'/api/v1/status',historico:'/api/v1/historico'},
  atualizarACadaMs:5000,                     // atualização automática (5 s)
  // status_risco devolvido pela IA -> cor do site (ok, warn, crit). Se o modelo treinado
