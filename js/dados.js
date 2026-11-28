@@ -7,7 +7,11 @@
 // Tudo que o site mostra é montado aqui a partir desses envios.
 // ============================================================
 const CONFIG={
+<<<<<<< HEAD
  apiUrl:'https://senator-publication-paso-sustainable.trycloudflare.com',            // endereço da API (sem barra no final)
+=======
+ apiUrl:'teste-api',            // endereço da API (sem barra no final)
+>>>>>>> a35b33e (Alteraçao no dados.js na apiurl)
  rotas:{status:'/api/v1/status',historico:'/api/v1/historico'},
  // Rotas opcionais para a API parar de aceitar os envios de um equipamento (veja INTEGRACAO.md). {id} vira o nome do equipamento.
  rotasEquip:{desconectar:'/api/v1/equipamentos/{id}/desconectar',reconectar:'/api/v1/equipamentos/{id}/reconectar'},
