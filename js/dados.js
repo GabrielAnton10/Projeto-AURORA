@@ -8,7 +8,7 @@
 // ============================================================
 const CONFIG={
  apiUrl:'https://wisdom-frequencies-believe-characteristic.trycloudflare.com',            // endereço da API (sem barra no final)
- rotaas:{status:'/api/v1/status',historico:'/api/v1/historico'},
+ rotas:{status:'/api/v1/status',historico:'/api/v1/historico'},
  // Rotas opcionais para a API parar de aceitar os envios de um equipamento (veja INTEGRACAO.md). {id} vira o nome do equipamento.
  rotasEquip:{desconectar:'/api/v1/equipamentos/{id}/desconectar',reconectar:'/api/v1/equipamentos/{id}/reconectar'},
  // API de administradores (api/routes.py). Deixe '' se ela estiver registrada na mesma API (apiUrl).
