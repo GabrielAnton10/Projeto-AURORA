@@ -7,7 +7,7 @@
 // Tudo que o site mostra é montado aqui a partir desses envios.
 // ============================================================
 const CONFIG={
- apiUrl:'https://floor-expert-physicians-notification.trycloudflare.com/',            // endereço da API (sem barra no final). Vazio = site desconectado da API
+ apiUrl:'https://commerce-tuner-known-november.trycloudflare.com',            // endereço da API (sem barra no final). Vazio = site desconectado da API
  pularLogin:true,                           // true = abre o painel direto, sem tela de login (para testes). Volte para false depois
  rotas:{status:'/api/v1/status',historico:'/api/v1/historico'},
  // Rotas opcionais para a API parar de aceitar os envios de um equipamento (veja INTEGRACAO.md). {id} vira o nome do equipamento.
@@ -24,6 +24,7 @@ const CONFIG={
  limites:{soloAtencaoV:1.8,soloCriticoV:2.5,inclinacaoAtencao:7,inclinacaoCritica:15,semContatoMin:5}
 };
 
+CONFIG.apiUrl=String(CONFIG.apiUrl||'').trim().replace(/\/+$/,'');   // tira a barra do final: com ela as rotas viram "//api/..." e a API responde 404
 try{localStorage.removeItem('aurora_api_url')}catch(e){}   // limpa endereco salvo por versoes anteriores: vale sempre CONFIG.apiUrl
 
 const SL={ok:'Normal',warn:'Atenção',crit:'Crítico',off:'Sem comunicação'};

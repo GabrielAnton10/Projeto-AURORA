@@ -368,6 +368,7 @@ function sessaoExpirada(err) {
 
 // Ao recarregar a pagina, continua logado se o token ainda for valido
 async function iniciarLogin() {
+ if (CONFIG.pularLogin) return abrirPainel();   // modo teste: entra sem login (js/dados.js)
  if (await adminSessao()) abrirPainel();
 }
 
