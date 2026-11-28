@@ -7,7 +7,8 @@
 // Tudo que o site mostra é montado aqui a partir desses envios.
 // ============================================================
 const CONFIG={
- apiUrl:'https://mill-retain-teenage-hobbies.trycloudflare.com/',            // endereço da API (sem barra no final)
+ apiUrl:'https://floor-expert-physicians-notification.trycloudflare.com/',            // endereço da API (sem barra no final). Vazio = site desconectado da API
+ pularLogin:true,                           // true = abre o painel direto, sem tela de login (para testes). Volte para false depois
  rotas:{status:'/api/v1/status',historico:'/api/v1/historico'},
  // Rotas opcionais para a API parar de aceitar os envios de um equipamento (veja INTEGRACAO.md). {id} vira o nome do equipamento.
  rotasEquip:{desconectar:'/api/v1/equipamentos/{id}/desconectar',reconectar:'/api/v1/equipamentos/{id}/reconectar'},
@@ -37,6 +38,7 @@ const norm=s=>String(s??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u03
 const num=v=>v==null||v===''?NaN:+v;
 const tempoDe=s=>new Date(String(s).replace(' ','T')).getTime();   // "recebido_em" vem sem fuso (hora do servidor)
 async function api(rota,tentou){
+ if(!CONFIG.apiUrl)throw new Error('API desconectada (apiUrl vazio em js/dados.js)');
  const h={};if(/ngrok/i.test(CONFIG.apiUrl))h['ngrok-skip-browser-warning']='1';   // evita a página de aviso do ngrok gratuito
  const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),CONFIG.timeoutMs);
  try{const r=await fetch(CONFIG.apiUrl+rota,{headers:h,signal:ac.signal});if(!r.ok)throw new Error(r.status+' '+r.statusText+' ('+rota+')');return await r.json()}
@@ -52,6 +54,7 @@ async function descobrirUrl(){
  return false}
 // POST sem corpo (usado em desconectar/reconectar). Devolve true se a API aceitou.
 async function apiPost(rota){
+ if(!CONFIG.apiUrl)return false;
  const h={};if(/ngrok/i.test(CONFIG.apiUrl))h['ngrok-skip-browser-warning']='1';
  const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),CONFIG.timeoutMs);
  try{const r=await fetch(CONFIG.apiUrl+rota,{method:'POST',headers:h,signal:ac.signal});return r.ok}
