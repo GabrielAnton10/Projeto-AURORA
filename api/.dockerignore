@@ -1,0 +1,8 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+aurora_admin.db
+aurora_admin.db.*
+.aurora_secret
+venv/
+.venv/
