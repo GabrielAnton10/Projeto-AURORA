@@ -12,7 +12,7 @@ const CONFIG={
  // Rotas opcionais para a API parar de aceitar os envios de um equipamento (veja INTEGRACAO.md). {id} vira o nome do equipamento.
  rotasEquip:{desconectar:'/api/v1/equipamentos/{id}/desconectar',reconectar:'/api/v1/equipamentos/{id}/reconectar'},
  // API de administradores (api/routes.py). Deixe '' se ela estiver registrada na mesma API (apiUrl).
- adminUrl:'http://localhost:5500',
+ adminUrl:'http://localhost:8001',
  atualizarACadaMs:5000,                     // atualização automática (5 s)
  timeoutMs:8000,                           // sem resposta em 8 s = API desconectada
  urlFonte:'',                               // (opcional) endereço de um JSON {"url":"https://..."} com a URL atual da API
